@@ -22,9 +22,20 @@ class MCP9800(object):
     SHIFT_COMP_INTR     = 1     # 1 = Interrupt mode, 0 = Comparator mode (default)
     SHIFT_SHUTDOWN      = 0     # 1 = Enable shutdown, 0 = Disable shutdown (default)
 
-    def __init__(self, i2c_id = 0, address = 0x4D):
+    def __init__(self, bus = None, i2c_id = 0, address = 0x4D):
+        """
+        MCP9800(bus = None, i2c_id = 0, address = 0x4D)
+
+        Either call with pre-initialised smbus(-compatible) instance in 'bus'
+        Or with /dev/i2c-<id> device id in 'i2c_id' to open a new bus instance
+
+        Usual MCP980x-family addresses are 0x48 ~ 0x4D
+        """
         self.address = address
-        self.bus = smbus.SMBus(i2c_id)
+        if bus:
+            self.bus = bus
+        else:
+            self.bus = smbus.SMBus(i2c_id)
 
     def read_register(self, register, length):
         data = self.bus.read_i2c_block_data(self.address, register, length)
@@ -45,7 +56,7 @@ class MCP9800(object):
 
 if __name__ == "__main__":
     # Initialise I2C
-    mcp = MCP9800(1, 0x4D)
+    mcp = MCP9800(i2c_id = 1, address = 0x4D)
 
     # 12-bit resolution
     mcp.set_resolution(12)
