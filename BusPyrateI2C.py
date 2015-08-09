@@ -13,7 +13,9 @@ import sys
 import serial
 import time
 
-__all__ = [ "BusPyrate", "BusPyrateError", "I2C" ]
+from pYnterface.GenericI2C import GenericI2C
+
+__all__ = [ "BusPyrate", "BusPyrateError", "BusPyrateI2C" ]
 
 def debug(message):
     #print("# " + message.strip())
@@ -213,7 +215,7 @@ class BusPyrate(object):
                 self.bp_mode = mode
 
 
-class I2C(object):
+class BusPyrateI2C(GenericI2C):
     MAX_SEND_BYTES  = 4096
 
     SPEED_5KHZ      = 0b00
@@ -251,13 +253,13 @@ class I2C(object):
         self.bp.reset()
 
     def set_speed(self, speed):
-        if self.bp.write_byte(I2C.CMD_SET_SPEED | (speed & 0x03)) != 0x01:
+        if self.bp.write_byte(BusPyrateI2C.CMD_SET_SPEED | (speed & 0x03)) != 0x01:
             raise BusPyrateError("I2C Set Speed failed")
         self.speed = speed
 
     def set_power_on(self, power_on):
-        #if self.bp.write_byte(I2C.CMD_PERIPHERALS | (int(power_on)<<3 | 1<<2)) != 0x01:
-        if self.bp.write_byte(I2C.CMD_PERIPHERALS | (int(power_on)<<3)) != 0x01:
+        #if self.bp.write_byte(BusPyrateI2C.CMD_PERIPHERALS | (int(power_on)<<3 | 1<<2)) != 0x01:
+        if self.bp.write_byte(BusPyrateI2C.CMD_PERIPHERALS | (int(power_on)<<3)) != 0x01:
             raise BusPyrateError("I2C Set Power failed")
         self.power_on = power_on
 
@@ -275,7 +277,7 @@ class I2C(object):
         if len(data) > 16 and len(data) <= 4096 and start and stop and bulk:
             # If both START and STOP are True (default) and len(data) > 16
             # -> use bulk transfer (max 4096 bytes at a time)
-            cmd = [ I2C.CMD_WR_BULK ]
+            cmd = [ BusPyrateI2C.CMD_WR_BULK ]
             cmd.append((len(data) & 0xFF00) >> 8)   # Write length - MSB
             cmd.append((len(data) & 0x00FF))        # Write length - LSB
             cmd.append(0)                           # Read length - MSB
@@ -289,19 +291,19 @@ class I2C(object):
             # Else do it manually in max 16-Byte chunks
             # -> BP CMD_WRITE_BYTES
             if start:
-                self.bp.write_byte(I2C.CMD_START)
+                self.bp.write_byte(BusPyrateI2C.CMD_START)
 
             while len(data):
 
                 data_chunk = data[:16]
                 del(data[:16])
 
-                buf = self.bp.write_bytes([ I2C.CMD_WRITE_BYTES | (len(data_chunk) - 1) ] + data_chunk)
+                buf = self.bp.write_bytes([ BusPyrateI2C.CMD_WRITE_BYTES | (len(data_chunk) - 1) ] + data_chunk)
                 # Strip off confirmation of the length byte
                 ret += buf[1:]
 
             if stop:
-                self.bp.write_byte(I2C.CMD_STOP)
+                self.bp.write_byte(BusPyrateI2C.CMD_STOP)
 
         return ret
 
@@ -331,7 +333,7 @@ if __name__ == "__main__":
     bp = BusPyrate(device = tty_device)
     print(bp)
     print("Binary mode: %s" % bp.get_mode())
-    i2c = I2C(bp = bp, power_on = True)
+    i2c = BusPyrateI2C(bp = bp, power_on = True)
     print("Binary mode: %s" % bp.get_mode())
     print("I2C speed: 0x%02X" % i2c.speed)
     print("Power On: %s" % i2c.power_on)

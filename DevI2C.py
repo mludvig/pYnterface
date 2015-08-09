@@ -5,10 +5,11 @@
 # License GPLv3
 
 import smbus
+from pYnterface.GenericI2C import GenericI2C
 
 __all__ = [ "DevI2C" ]
 
-class DevI2C(object):
+class DevI2C(GenericI2C):
     MAX_SEND_BYTES = 32
 
     def __init__(self, bus):
