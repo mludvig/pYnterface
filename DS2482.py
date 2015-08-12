@@ -85,53 +85,80 @@ class DS2482(object):
         self.wait_busy()
 
     def search_bus(self, search_alarm = False):
-        def _find_search_dir(bit, desc_bit, last_discrepancy):
-            # Last time searched 0, this time 1
-            if bit == desc_bit:
-                return 1
-            # Below last fork - take 0
-            elif bit > desc_bit:
-                return 0
-            # Are we again on last discrepancy?
-            else:
-                return ((last_discrepancy >> bit) & 0x01)
+        # Implementation of 1-Wire Search Algorithm
+        # from Maxim Integrated Application note 187
+        # http://www.maximintegrated.com/en/app-notes/index.mvp/id/187
+
+        devices = []
 
         last_discrepancy = 0
-        discrepancy = 0
         last_device = False
+        last_rom_no_bin = 0     # big-endian rom number
 
         search_command = search_alarm and self.OW_SEARCH_ALARM or self.OW_SEARCH_ALL
+
         while not last_device:
-            last_discrepancy = discrepancy
+            rom_no_bin = 0
+
+            last_zero = 0
+            rom_no = []
+            octet = 0x00
+            id_bit = cmp_id_bit = dir_taken = 0
+
             self.reset_1wire()
             self.write_1wire_byte(search_command)
-            octet = 0x00
-            for bit in range(64):
-                # Figure out direction
-                #search_dir = _find_search_dir(bit, desc_bit, last_discrepancy)
-                search_dir = 0
-                triplet_ret = self.triplet(search_dir)
+
+            for id_bit_number in range(1, 64 + 1):
+
+                # Determine search_direction
+                if id_bit_number == last_discrepancy:
+                    search_direction = 1
+                elif id_bit_number > last_discrepancy:
+                    search_direction = 0
+                else:
+                    search_direction = (last_rom_no_bin >> (id_bit_number-1)) & 0x01
+
+                triplet_ret = self.triplet(search_direction)
                 status = self.read_register(self.REG_STATUS)   # Read previously set REG_STATUS
-                _sbr = (status & self.CFG_BIT_SBR) >> 5
-                _tsb = (status & self.CFG_BIT_TSB) >> 6
-                _dir = (status & self.CFG_BIT_DIR) >> 7
-                print("%02d> %d : %d %d %d %s" % (bit, search_dir, _sbr, _tsb, _dir, 
-                    (_sbr == _tsb == 0 and "*" or "")))
-                octet |= (_sbr << (bit % 8))
-                if bit % 8 == 7:
-                    print("=> 0x%02X" % octet)
+                id_bit = (status & self.CFG_BIT_SBR) >> 5
+                cmp_id_bit = (status & self.CFG_BIT_TSB) >> 6
+                dir_taken = (status & self.CFG_BIT_DIR) >> 7
+
+                if id_bit == cmp_id_bit == 1:
+                    # Error or no devices on the bus
+                    last_device = True
+                    break
+
+                #is_discrepancy = (id_bit == cmp_id_bit == 0)
+                #if is_discrepancy:
+                #    print("%02d> %d : %d %d %d %s ld=%d" % (id_bit_number, search_direction,
+                #        id_bit, cmp_id_bit, dir_taken,
+                #        (is_discrepancy and "*" or ""),
+                #        last_discrepancy))
+
+                rom_no_bin |= (dir_taken << (id_bit_number-1))
+                octet |= (dir_taken << ((id_bit_number-1) % 8))
+                if (id_bit_number-1) % 8 == 7:
+                    #print("=> 0x%02X" % octet)
+                    rom_no.append(octet)
                     octet = 0x00
-            break
+
+                if id_bit == cmp_id_bit == dir_taken == 0:
+                    last_zero = id_bit_number
+
+            last_discrepancy = last_zero
+            last_device = (last_zero == 0)
+            last_rom_no_bin = rom_no_bin
+            #print("**** Device: %s" % ":".join(["%02X" % x for x in rom_no]))
+            devices.append(rom_no)
+        return devices
 
 if __name__ == "__main__":
     import time
     ow = DS2482(i2c_id = 1, address = 0x18)
     print("DS2482 Status: 0x%02X" % ow.read_register(DS2482.REG_STATUS))
     print("DS2482 Config: 0x%02X" % ow.read_register(DS2482.REG_CONFIG))
-    ow.reset_1wire()
-    ow.write_1wire_byte(DS2482.OW_READ_ROM)
-    print("1Wire ROM: ", end = "")
-    for i in range(0,8):
-        print("%02X " % ow.read_1wire_byte(), end = "")
-    print()
-    ow.search_bus()
+
+    devices = ow.search_bus()
+    for device in devices:
+            print("Device: %s" % ":".join(["%02X" % x for x in device]))
