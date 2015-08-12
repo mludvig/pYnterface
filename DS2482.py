@@ -60,7 +60,10 @@ class DS2482(object):
         return self.bus.read_byte(self.address)
 
     def wait_busy(self):
-        time.sleep(0.01)    # TODO check the status register instead
+        # Wait until REG_CONFIG.1WB bit clears
+        busy = True
+        while busy:
+            busy = self.read_register(self.REG_STATUS) & self.CFG_BIT_1WB
 
     def reset_1wire(self, wait_busy = True):
         self.bus.write_byte(self.address, self.CMD_1W_RESET)
