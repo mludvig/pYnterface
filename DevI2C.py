@@ -34,7 +34,7 @@ class DevI2C(GenericI2C):
 if __name__ == "__main__":
     i2c_id = 1  # /dev/i2c-<id>
     i2c = DevI2C(i2c_id = i2c_id)
-    print("Opened bus: i2c-%d" % bus)
+    print("Opened bus: i2c-%d" % i2c_id)
     devices = i2c.scan_bus()
     print("Found I2C devices: %s" % (devices and " ".join([hex(ch) for ch in devices]) or "None"))
     i2c.close()
